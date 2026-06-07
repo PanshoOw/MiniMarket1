@@ -78,6 +78,11 @@ public class ProductoController {
                     .body(Map.of(ERROR_KEY, "El nombre del producto es obligatorio"));
         }
 
+        if (contieneContenidoPeligroso(nombre)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre del producto contiene caracteres no permitidos"));
+        }
+
         if (precio == null || precio.isNaN() || precio <= 0) {
             return ResponseEntity.badRequest()
                     .body(Map.of(ERROR_KEY, "El precio debe ser mayor a cero"));
@@ -137,6 +142,11 @@ public class ProductoController {
                     .body(Map.of(ERROR_KEY, "El nombre del producto es obligatorio"));
         }
 
+        if (contieneContenidoPeligroso(nombre)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre del producto contiene caracteres no permitidos"));
+        }
+
         if (precio == null || precio.isNaN() || precio <= 0) {
             return ResponseEntity.badRequest()
                     .body(Map.of(ERROR_KEY, "El precio debe ser mayor a cero"));
@@ -181,6 +191,18 @@ public class ProductoController {
         productoService.deleteById(id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    private boolean contieneContenidoPeligroso(String texto) {
+        String textoNormalizado = texto.toLowerCase();
+
+        return textoNormalizado.contains("<script")
+                || textoNormalizado.contains("</script>")
+                || textoNormalizado.contains("javascript:")
+                || textoNormalizado.contains("onerror")
+                || textoNormalizado.contains("onload")
+                || textoNormalizado.contains("<")
+                || textoNormalizado.contains(">");
     }
 
     private ProductoResponse convertirAResponse(Producto producto) {
