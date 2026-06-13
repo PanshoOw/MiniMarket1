@@ -5,14 +5,28 @@ public class UsuarioRequest {
     private String username;
     private String password;
     private String rol;
+    private String nombre;
+    private String apellido;
+    private String email;
+    private String direccion;
 
     public UsuarioRequest() {
     }
 
-    public UsuarioRequest(String username, String password, String rol) {
+    public UsuarioRequest(String username,
+                          String password,
+                          String rol,
+                          String nombre,
+                          String apellido,
+                          String email,
+                          String direccion) {
         this.username = username;
         this.password = password;
         this.rol = rol;
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.email = email;
+        this.direccion = direccion;
     }
 
     public String getUsername() {
@@ -27,15 +41,23 @@ public class UsuarioRequest {
         return password;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
     public String getRol() {
         return rol;
     }
 
-    public void setRol(String rol) {
-        this.rol = rol;
+    public String getNombre() {
+        return nombre;
+    }
+
+    public String getApellido() {
+        return apellido;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getDireccion() {
+        return direccion;
     }
 }

@@ -72,25 +72,33 @@ public class UsuarioController {
         String username = obtenerTextoValidado(usuarioRequest.getUsername());
         String password = obtenerTextoValidado(usuarioRequest.getPassword());
         String nombreRol = obtenerTextoValidado(usuarioRequest.getRol());
+        String nombre = obtenerTextoValidado(usuarioRequest.getNombre());
+        String apellido = obtenerTextoValidado(usuarioRequest.getApellido());
+        String email = obtenerTextoValidado(usuarioRequest.getEmail());
+        String direccion = obtenerTextoValidado(usuarioRequest.getDireccion());
 
-        if (username == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "El nombre de usuario es obligatorio"));
-        }
+        ResponseEntity<Object> validacion = validarDatosUsuario(
+                username,
+                password,
+                nombreRol,
+                nombre,
+                apellido,
+                email,
+                direccion
+        );
 
-        if (password == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "La contraseña es obligatoria"));
-        }
-
-        if (nombreRol == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "El rol es obligatorio"));
+        if (validacion != null) {
+            return validacion;
         }
 
         if (usuarioService.findByUsername(username).isPresent()) {
             return ResponseEntity.badRequest()
                     .body(Map.of(ERROR_KEY, "El usuario ya existe"));
+        }
+
+        if (usuarioService.findByEmail(email).isPresent()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email ya está en uso"));
         }
 
         Optional<Rol> rolOptional = rolRepository.findByNombre(nombreRol);
@@ -102,11 +110,11 @@ public class UsuarioController {
 
         Usuario usuario = new Usuario();
         usuario.setUsername(username);
-
-        // La contraseña se almacena cifrada con BCrypt.
         usuario.setPassword(passwordEncoder.encode(password));
-
-        // Solo un GERENTE puede acceder a este controlador y asignar roles.
+        usuario.setNombre(nombre);
+        usuario.setApellido(apellido);
+        usuario.setEmail(email);
+        usuario.setDireccion(direccion);
         usuario.setRoles(Set.of(rolOptional.get()));
 
         Usuario guardado = usuarioService.save(usuario);
@@ -132,20 +140,23 @@ public class UsuarioController {
         String username = obtenerTextoValidado(usuarioRequest.getUsername());
         String password = obtenerTextoValidado(usuarioRequest.getPassword());
         String nombreRol = obtenerTextoValidado(usuarioRequest.getRol());
+        String nombre = obtenerTextoValidado(usuarioRequest.getNombre());
+        String apellido = obtenerTextoValidado(usuarioRequest.getApellido());
+        String email = obtenerTextoValidado(usuarioRequest.getEmail());
+        String direccion = obtenerTextoValidado(usuarioRequest.getDireccion());
 
-        if (username == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "El nombre de usuario es obligatorio"));
-        }
+        ResponseEntity<Object> validacion = validarDatosUsuario(
+                username,
+                password,
+                nombreRol,
+                nombre,
+                apellido,
+                email,
+                direccion
+        );
 
-        if (password == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "La contraseña es obligatoria"));
-        }
-
-        if (nombreRol == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of(ERROR_KEY, "El rol es obligatorio"));
+        if (validacion != null) {
+            return validacion;
         }
 
         Optional<Usuario> usuarioConMismoUsername = usuarioService.findByUsername(username);
@@ -154,6 +165,14 @@ public class UsuarioController {
                 && !usuarioConMismoUsername.get().getId().equals(id)) {
             return ResponseEntity.badRequest()
                     .body(Map.of(ERROR_KEY, "El nombre de usuario ya está en uso"));
+        }
+
+        Optional<Usuario> usuarioConMismoEmail = usuarioService.findByEmail(email);
+
+        if (usuarioConMismoEmail.isPresent()
+                && !usuarioConMismoEmail.get().getId().equals(id)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email ya está en uso"));
         }
 
         Optional<Rol> rolOptional = rolRepository.findByNombre(nombreRol);
@@ -165,10 +184,11 @@ public class UsuarioController {
 
         Usuario usuarioExistente = usuarioExistenteOptional.get();
         usuarioExistente.setUsername(username);
-
-        // La contraseña actualizada también se almacena cifrada.
         usuarioExistente.setPassword(passwordEncoder.encode(password));
-
+        usuarioExistente.setNombre(nombre);
+        usuarioExistente.setApellido(apellido);
+        usuarioExistente.setEmail(email);
+        usuarioExistente.setDireccion(direccion);
         usuarioExistente.setRoles(Set.of(rolOptional.get()));
 
         Usuario guardado = usuarioService.save(usuarioExistente);
@@ -189,6 +209,57 @@ public class UsuarioController {
         return ResponseEntity.noContent().build();
     }
 
+    private ResponseEntity<Object> validarDatosUsuario(String username,
+                                                       String password,
+                                                       String nombreRol,
+                                                       String nombre,
+                                                       String apellido,
+                                                       String email,
+                                                       String direccion) {
+
+        if (username == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre de usuario es obligatorio"));
+        }
+
+        if (password == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "La contraseña es obligatoria"));
+        }
+
+        if (nombreRol == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El rol es obligatorio"));
+        }
+
+        if (nombre == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre es obligatorio"));
+        }
+
+        if (apellido == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El apellido es obligatorio"));
+        }
+
+        if (email == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email es obligatorio"));
+        }
+
+        if (!email.contains("@") || !email.contains(".")) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email no tiene un formato válido"));
+        }
+
+        if (direccion == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "La dirección es obligatoria"));
+        }
+
+        return null;
+    }
+
     private String obtenerTextoValidado(String texto) {
 
         if (texto == null) {
@@ -207,7 +278,11 @@ public class UsuarioController {
     private UsuarioDTO convertirADto(Usuario usuario) {
         return new UsuarioDTO(
                 usuario.getId(),
-                usuario.getUsername()
+                usuario.getUsername(),
+                usuario.getNombre(),
+                usuario.getApellido(),
+                usuario.getEmail(),
+                usuario.getDireccion()
         );
     }
 }

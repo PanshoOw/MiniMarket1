@@ -5,56 +5,74 @@ import com.minimarket.entity.Usuario;
 import com.minimarket.repository.RolRepository;
 import com.minimarket.repository.UsuarioRepository;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-@Configuration
-public class DataLoader {
+@Component
+public class DataLoader implements CommandLineRunner {
 
     private static final String ROLE_GERENTE = "ROLE_GERENTE";
     private static final String ROLE_EMPLEADO = "ROLE_EMPLEADO";
     private static final String ROLE_CLIENTE = "ROLE_CLIENTE";
 
-    @Bean
-    CommandLineRunner initData(RolRepository rolRepository,
-                               UsuarioRepository usuarioRepository,
-                               PasswordEncoder passwordEncoder) {
-        return args -> {
+    private final RolRepository rolRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
 
-            Rol rolGerente = crearRolSiNoExiste(rolRepository, ROLE_GERENTE);
-            Rol rolEmpleado = crearRolSiNoExiste(rolRepository, ROLE_EMPLEADO);
-            Rol rolCliente = crearRolSiNoExiste(rolRepository, ROLE_CLIENTE);
-
-            crearUsuarioSiNoExiste(
-                    usuarioRepository,
-                    passwordEncoder,
-                    "gerente",
-                    "gerente123",
-                    rolGerente
-            );
-
-            crearUsuarioSiNoExiste(
-                    usuarioRepository,
-                    passwordEncoder,
-                    "empleado",
-                    "empleado123",
-                    rolEmpleado
-            );
-
-            crearUsuarioSiNoExiste(
-                    usuarioRepository,
-                    passwordEncoder,
-                    "cliente",
-                    "cliente123",
-                    rolCliente
-            );
-        };
+    public DataLoader(RolRepository rolRepository,
+                      UsuarioRepository usuarioRepository,
+                      PasswordEncoder passwordEncoder) {
+        this.rolRepository = rolRepository;
+        this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    private Rol crearRolSiNoExiste(RolRepository rolRepository, String nombreRol) {
+    @Override
+    public void run(String... args) {
+        Rol rolGerente = crearRolSiNoExiste(ROLE_GERENTE);
+        Rol rolEmpleado = crearRolSiNoExiste(ROLE_EMPLEADO);
+        Rol rolCliente = crearRolSiNoExiste(ROLE_CLIENTE);
+
+        crearUsuarioSiNoExiste(
+                new UsuarioInicial(
+                        "gerente",
+                        "gerente123",
+                        "Gerente",
+                        "Principal",
+                        "gerente@minimarket.cl",
+                        "Casa matriz 100",
+                        rolGerente
+                )
+        );
+
+        crearUsuarioSiNoExiste(
+                new UsuarioInicial(
+                        "empleado",
+                        "empleado123",
+                        "Empleado",
+                        "Operativo",
+                        "empleado@minimarket.cl",
+                        "Sucursal central 200",
+                        rolEmpleado
+                )
+        );
+
+        crearUsuarioSiNoExiste(
+                new UsuarioInicial(
+                        "cliente",
+                        "cliente123",
+                        "Cliente",
+                        "Demo",
+                        "cliente@minimarket.cl",
+                        "Dirección cliente 300",
+                        rolCliente
+                )
+        );
+    }
+
+    private Rol crearRolSiNoExiste(String nombreRol) {
         return rolRepository.findByNombre(nombreRol)
                 .orElseGet(() -> {
                     Rol rol = new Rol();
@@ -63,25 +81,29 @@ public class DataLoader {
                 });
     }
 
-    private void crearUsuarioSiNoExiste(UsuarioRepository usuarioRepository,
-                                        PasswordEncoder passwordEncoder,
-                                        String username,
-                                        String password,
-                                        Rol rol) {
-
-        if (usuarioRepository.findByUsername(username).isPresent()) {
+    private void crearUsuarioSiNoExiste(UsuarioInicial usuarioInicial) {
+        if (usuarioRepository.findByUsername(usuarioInicial.username()).isPresent()) {
             return;
         }
 
         Usuario usuario = new Usuario();
-        usuario.setUsername(username);
-
-        // La contraseña se guarda cifrada con BCrypt.
-        usuario.setPassword(passwordEncoder.encode(password));
-
-        // El usuario se crea con un rol controlado desde el backend.
-        usuario.setRoles(Set.of(rol));
+        usuario.setUsername(usuarioInicial.username());
+        usuario.setPassword(passwordEncoder.encode(usuarioInicial.password()));
+        usuario.setNombre(usuarioInicial.nombre());
+        usuario.setApellido(usuarioInicial.apellido());
+        usuario.setEmail(usuarioInicial.email());
+        usuario.setDireccion(usuarioInicial.direccion());
+        usuario.setRoles(Set.of(usuarioInicial.rol()));
 
         usuarioRepository.save(usuario);
+    }
+
+    private record UsuarioInicial(String username,
+                                  String password,
+                                  String nombre,
+                                  String apellido,
+                                  String email,
+                                  String direccion,
+                                  Rol rol) {
     }
 }

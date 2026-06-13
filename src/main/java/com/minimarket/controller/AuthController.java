@@ -101,11 +101,41 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<Map<String, String>> register(@RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<Map<String, String>> register(@RequestBody(required = false) RegisterRequest registerRequest) {
 
-        if (usuarioService.findByUsername(registerRequest.getUsername()).isPresent()) {
+        if (registerRequest == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "Los datos de registro son obligatorios"));
+        }
+
+        String username = obtenerTextoValidado(registerRequest.getUsername());
+        String password = obtenerTextoValidado(registerRequest.getPassword());
+        String nombre = obtenerTextoValidado(registerRequest.getNombre());
+        String apellido = obtenerTextoValidado(registerRequest.getApellido());
+        String email = obtenerTextoValidado(registerRequest.getEmail());
+        String direccion = obtenerTextoValidado(registerRequest.getDireccion());
+
+        ResponseEntity<Map<String, String>> validacion = validarDatosRegistro(
+                username,
+                password,
+                nombre,
+                apellido,
+                email,
+                direccion
+        );
+
+        if (validacion != null) {
+            return validacion;
+        }
+
+        if (usuarioService.findByUsername(username).isPresent()) {
             return ResponseEntity.badRequest()
                     .body(Map.of(ERROR_KEY, "El usuario ya existe"));
+        }
+
+        if (usuarioService.findByEmail(email).isPresent()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email ya está en uso"));
         }
 
         Optional<Rol> rolClienteOptional = rolRepository.findByNombre(ROLE_CLIENTE);
@@ -116,13 +146,14 @@ public class AuthController {
         }
 
         Usuario usuario = new Usuario();
-        usuario.setUsername(registerRequest.getUsername());
-
-        // Se almacena la contraseña cifrada, no en texto plano.
-        usuario.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+        usuario.setUsername(username);
+        usuario.setPassword(passwordEncoder.encode(password));
+        usuario.setNombre(nombre);
+        usuario.setApellido(apellido);
+        usuario.setEmail(email);
+        usuario.setDireccion(direccion);
 
         // Todo registro público queda limitado al rol CLIENTE.
-        // Esto evita que una persona externa se registre como GERENTE o EMPLEADO.
         usuario.setRoles(Set.of(rolClienteOptional.get()));
 
         usuarioService.save(usuario);
@@ -130,8 +161,69 @@ public class AuthController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "Usuario registrado exitosamente con rol CLIENTE");
         response.put("username", usuario.getUsername());
+        response.put("email", usuario.getEmail());
         response.put("rol", ROLE_CLIENTE);
 
         return ResponseEntity.ok(response);
+    }
+
+    private ResponseEntity<Map<String, String>> validarDatosRegistro(String username,
+                                                                     String password,
+                                                                     String nombre,
+                                                                     String apellido,
+                                                                     String email,
+                                                                     String direccion) {
+
+        if (username == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre de usuario es obligatorio"));
+        }
+
+        if (password == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "La contraseña es obligatoria"));
+        }
+
+        if (nombre == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El nombre es obligatorio"));
+        }
+
+        if (apellido == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El apellido es obligatorio"));
+        }
+
+        if (email == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email es obligatorio"));
+        }
+
+        if (!email.contains("@") || !email.contains(".")) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "El email no tiene un formato válido"));
+        }
+
+        if (direccion == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "La dirección es obligatoria"));
+        }
+
+        return null;
+    }
+
+    private String obtenerTextoValidado(String texto) {
+
+        if (texto == null) {
+            return null;
+        }
+
+        String textoLimpio = texto.trim();
+
+        if (textoLimpio.isEmpty()) {
+            return null;
+        }
+
+        return textoLimpio;
     }
 }
