@@ -101,11 +101,18 @@ public class CarritoController {
                     .body(Map.of(ERROR_KEY, "El producto indicado no existe"));
         }
 
+        Producto producto = productoOptional.get();
+
+        if (producto.getStock() < cantidad) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "Stock insuficiente para el producto indicado"));
+        }
+
         Carrito carrito = new Carrito();
 
         // Se asignan entidades existentes a partir de los ID recibidos en el DTO.
         carrito.setUsuario(usuarioOptional.get());
-        carrito.setProducto(productoOptional.get());
+        carrito.setProducto(producto);
         carrito.setCantidad(cantidad);
 
         Carrito carritoGuardado = carritoService.save(carrito);
@@ -160,8 +167,15 @@ public class CarritoController {
                     .body(Map.of(ERROR_KEY, "El producto indicado no existe"));
         }
 
+        Producto producto = productoOptional.get();
+
+        if (producto.getStock() < cantidad) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(ERROR_KEY, "Stock insuficiente para el producto indicado"));
+        }
+
         carritoExistente.setUsuario(usuarioOptional.get());
-        carritoExistente.setProducto(productoOptional.get());
+        carritoExistente.setProducto(producto);
         carritoExistente.setCantidad(cantidad);
 
         Carrito carritoActualizado = carritoService.save(carritoExistente);

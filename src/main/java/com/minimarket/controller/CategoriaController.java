@@ -56,7 +56,8 @@ public class CategoriaController {
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
-    public ResponseEntity<Object> guardarCategoria(@RequestBody CategoriaRequest categoriaRequest) {
+    public ResponseEntity<Object> guardarCategoria(
+            @RequestBody(required = false) CategoriaRequest categoriaRequest) {
 
         String nombre = obtenerNombreValidado(categoriaRequest);
 
@@ -75,8 +76,9 @@ public class CategoriaController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
-    public ResponseEntity<Object> actualizarCategoria(@PathVariable Long id,
-                                                      @RequestBody CategoriaRequest categoriaRequest) {
+    public ResponseEntity<Object> actualizarCategoria(
+            @PathVariable Long id,
+            @RequestBody(required = false) CategoriaRequest categoriaRequest) {
 
         Categoria categoriaExistente = categoriaService.findById(id);
 

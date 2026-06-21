@@ -61,7 +61,7 @@ public class ProductoController {
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
-    public ResponseEntity<Object> guardarProducto(@RequestBody ProductoRequest productoRequest) {
+    public ResponseEntity<Object> guardarProducto(@RequestBody(required = false) ProductoRequest productoRequest) {
 
         if (productoRequest == null) {
             return ResponseEntity.badRequest()
@@ -119,7 +119,7 @@ public class ProductoController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
     public ResponseEntity<Object> actualizarProducto(@PathVariable Long id,
-                                                     @RequestBody ProductoRequest productoRequest) {
+                                                    @RequestBody(required = false) ProductoRequest productoRequest) {
 
         Producto productoExistente = productoService.findById(id);
 
