@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -70,6 +71,10 @@ class CarritoControllerTest {
 
     @Test
     void agregarProductoConStockSuficienteDebeRetornarOk() throws Exception {
+        // REQ-CARRITO-01:
+        // Valida que el sistema permita agregar un producto al carrito cuando el usuario existe,
+        // el producto existe y la cantidad solicitada no supera el stock disponible.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 2);
 
         simularUsuarioExistente(1L, "cliente1");
@@ -85,11 +90,16 @@ class CarritoControllerTest {
                 .andExpect(jsonPath("$.nombreProducto").value("Leche"))
                 .andExpect(jsonPath("$.cantidad").value(2));
 
+        // Verifica que, al cumplirse las reglas de negocio, el carrito efectivamente se guarde.
         verify(carritoService).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoConStockInsuficienteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-02:
+        // Valida que el sistema rechace agregar un producto cuando la cantidad solicitada
+        // supera el stock disponible.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 10);
 
         simularUsuarioExistente(1L, "cliente1");
@@ -98,10 +108,16 @@ class CarritoControllerTest {
         postCarrito(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Stock insuficiente para el producto indicado"));
+
+        // Verifica que no se persista información cuando la regla de stock falla.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoConUsuarioInexistenteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-03:
+        // Valida que no se pueda agregar un producto al carrito si el usuario indicado no existe.
+
         CarritoRequest request = new CarritoRequest(99L, 1L, 1);
 
         when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
@@ -110,10 +126,16 @@ class CarritoControllerTest {
         postCarrito(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El usuario indicado no existe"));
+
+        // Evita que se cree un carrito asociado a un usuario inválido.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoConProductoInexistenteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-04:
+        // Valida que no se pueda agregar al carrito un producto inexistente.
+
         CarritoRequest request = new CarritoRequest(1L, 99L, 1);
 
         simularUsuarioExistente(1L, "cliente1");
@@ -122,35 +144,75 @@ class CarritoControllerTest {
         postCarrito(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El producto indicado no existe"));
+
+        // Verifica que el servicio de guardado no sea invocado ante un producto inválido.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoConCantidadNulaDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-05:
+        // Valida el caso límite donde la cantidad enviada es nula.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, null);
 
         postCarrito(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("La cantidad debe ser mayor a cero"));
+
+        // Una cantidad nula no debe generar persistencia del carrito.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoConCantidadCeroDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-06:
+        // Valida el caso límite donde la cantidad enviada es cero.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 0);
 
         postCarrito(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("La cantidad debe ser mayor a cero"));
+
+        // Una cantidad igual a cero no debe generar persistencia del carrito.
+        verify(carritoService, never()).save(any(Carrito.class));
+    }
+
+    @Test
+    void agregarProductoConCantidadNegativaDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-07:
+        // Valida el caso límite donde la cantidad enviada es negativa.
+
+        CarritoRequest request = new CarritoRequest(1L, 1L, -1);
+
+        postCarrito(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("La cantidad debe ser mayor a cero"));
+
+        // Una cantidad negativa no debe generar persistencia del carrito.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void agregarProductoSinBodyDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-08:
+        // Valida que el endpoint rechace solicitudes sin cuerpo JSON.
+
         postCarritoSinBody()
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Los datos del carrito son obligatorios"));
+
+        // Sin datos de entrada, el sistema no debe intentar guardar un carrito.
+        verify(carritoService, never()).save(any(Carrito.class));
     }
 
     @Test
     void listarCarritoDebeRetornarOk() throws Exception {
+        // REQ-CARRITO-09:
+        // Valida que el endpoint de listado retorne los carritos existentes con los datos
+        // relevantes de usuario, producto y cantidad.
+
         Carrito carrito = crearCarrito(
                 1L,
                 crearUsuario(1L, "cliente1"),
@@ -172,6 +234,9 @@ class CarritoControllerTest {
 
     @Test
     void obtenerCarritoPorIdExistenteDebeRetornarOk() throws Exception {
+        // REQ-CARRITO-10:
+        // Valida la consulta exitosa de un carrito existente mediante su identificador.
+
         Carrito carrito = crearCarrito(
                 1L,
                 crearUsuario(1L, "cliente1"),
@@ -190,6 +255,9 @@ class CarritoControllerTest {
 
     @Test
     void obtenerCarritoPorIdInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-CARRITO-11:
+        // Valida que el sistema responda 404 cuando se consulta un carrito inexistente.
+
         when(carritoService.findById(99L)).thenReturn(null);
 
         mockMvc.perform(get(API_CARRITO + "/99"))
@@ -198,6 +266,10 @@ class CarritoControllerTest {
 
     @Test
     void obtenerCarritoConUsuarioNuloDebeRetornarOkSinDatosUsuario() throws Exception {
+        // REQ-CARRITO-12:
+        // Valida que la respuesta sea tolerante cuando el carrito no tiene usuario asociado,
+        // evitando errores por referencias nulas.
+
         Carrito carrito = crearCarrito(
                 1L,
                 null,
@@ -216,6 +288,10 @@ class CarritoControllerTest {
 
     @Test
     void obtenerCarritoConProductoNuloDebeRetornarOkSinDatosProducto() throws Exception {
+        // REQ-CARRITO-13:
+        // Valida que la respuesta sea tolerante cuando el carrito no tiene producto asociado,
+        // evitando errores por referencias nulas.
+
         Carrito carrito = crearCarrito(
                 1L,
                 crearUsuario(1L, "cliente1"),
@@ -234,6 +310,10 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoConStockSuficienteDebeRetornarOk() throws Exception {
+        // REQ-CARRITO-14:
+        // Valida que el sistema permita actualizar un carrito existente cuando los nuevos
+        // datos son válidos y existe stock suficiente.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 3);
         Carrito existente = crearCarrito(
                 1L,
@@ -257,6 +337,9 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-CARRITO-15:
+        // Valida que no se pueda actualizar un carrito inexistente.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 3);
 
         when(carritoService.findById(99L)).thenReturn(null);
@@ -267,6 +350,10 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoConStockInsuficienteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-16:
+        // Valida que la actualización del carrito sea rechazada cuando la nueva cantidad
+        // supera el stock disponible.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, 20);
         Carrito existente = crearCarrito(
                 1L,
@@ -286,6 +373,9 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoSinBodyDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-17:
+        // Valida que la actualización sea rechazada cuando no se envía cuerpo JSON.
+
         Carrito existente = crearCarrito(
                 1L,
                 crearUsuario(1L, "cliente1"),
@@ -302,6 +392,9 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoConUsuarioInexistenteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-18:
+        // Valida que no se pueda actualizar un carrito asociándolo a un usuario inexistente.
+
         CarritoRequest request = new CarritoRequest(99L, 1L, 1);
         Carrito existente = crearCarrito(
                 1L,
@@ -321,6 +414,9 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoConProductoInexistenteDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-19:
+        // Valida que no se pueda actualizar un carrito asociándolo a un producto inexistente.
+
         CarritoRequest request = new CarritoRequest(1L, 99L, 1);
         Carrito existente = crearCarrito(
                 1L,
@@ -340,6 +436,9 @@ class CarritoControllerTest {
 
     @Test
     void actualizarCarritoConCantidadNegativaDebeRetornarBadRequest() throws Exception {
+        // REQ-CARRITO-20:
+        // Valida que la actualización rechace cantidades negativas como caso límite.
+
         CarritoRequest request = new CarritoRequest(1L, 1L, -1);
         Carrito existente = crearCarrito(
                 1L,
@@ -357,6 +456,9 @@ class CarritoControllerTest {
 
     @Test
     void eliminarCarritoExistenteDebeRetornarNoContent() throws Exception {
+        // REQ-CARRITO-21:
+        // Valida que un carrito existente pueda ser eliminado correctamente.
+
         Carrito carrito = crearCarrito(
                 1L,
                 crearUsuario(1L, "cliente1"),
@@ -369,16 +471,22 @@ class CarritoControllerTest {
         mockMvc.perform(delete(API_CARRITO + "/1"))
                 .andExpect(status().isNoContent());
 
+        // Verifica que el servicio de eliminación sea invocado con el ID correcto.
         verify(carritoService).deleteById(1L);
     }
 
     @Test
     void eliminarCarritoInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-CARRITO-22:
+        // Valida que el sistema responda 404 al intentar eliminar un carrito inexistente.
+
         when(carritoService.findById(99L)).thenReturn(null);
 
         mockMvc.perform(delete(API_CARRITO + "/99"))
                 .andExpect(status().isNotFound());
     }
+
+    // Métodos auxiliares para centralizar la ejecución de peticiones HTTP sobre el endpoint de carrito.
 
     private ResultActions postCarrito(CarritoRequest request) throws Exception {
         return mockMvc.perform(post(API_CARRITO)
@@ -406,6 +514,8 @@ class CarritoControllerTest {
         return objectMapper.writeValueAsString(object);
     }
 
+    // Métodos auxiliares para configurar datos simulados con Mockito.
+
     private void simularUsuarioExistente(Long id, String username) {
         when(usuarioRepository.findById(id)).thenReturn(Optional.of(crearUsuario(id, username)));
     }
@@ -421,6 +531,8 @@ class CarritoControllerTest {
             return carrito;
         });
     }
+
+    // Métodos de construcción de entidades usados exclusivamente para las pruebas unitarias.
 
     private Usuario crearUsuario(Long id, String username) {
         Usuario usuario = new Usuario();

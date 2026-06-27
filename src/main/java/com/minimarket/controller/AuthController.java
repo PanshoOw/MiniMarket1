@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.StringJoiner;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -74,28 +74,26 @@ public class AuthController {
                     "0.0.0.0",
                     "Credenciales incorrectas"
             );
+
             return ResponseEntity.status(401)
                     .body(Map.of(ERROR_KEY, "Credenciales incorrectas"));
         }
 
         final UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getUsername());
         final String jwt = jwtUtil.generateToken(userDetails);
+        final String roles = obtenerRoles(userDetails);
 
         auditoriaService.registrarEvento(
                 userDetails.getUsername(),
                 "LOGIN_EXITOSO",
                 "0.0.0.0",
-                "Roles: " + userDetails.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .collect(Collectors.joining(","))
+                "Roles: " + roles
         );
 
         Map<String, String> response = new HashMap<>();
         response.put("token", jwt);
         response.put("username", userDetails.getUsername());
-        response.put("roles", userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(",")));
+        response.put("roles", roles);
 
         return ResponseEntity.ok(response);
     }
@@ -153,7 +151,7 @@ public class AuthController {
         usuario.setEmail(email);
         usuario.setDireccion(direccion);
 
-        // Todo registro público queda limitado al rol CLIENTE.
+        // El registro público asigna siempre el rol CLIENTE.
         usuario.setRoles(Set.of(rolClienteOptional.get()));
 
         usuarioService.save(usuario);
@@ -165,6 +163,16 @@ public class AuthController {
         response.put("rol", ROLE_CLIENTE);
 
         return ResponseEntity.ok(response);
+    }
+
+    private String obtenerRoles(UserDetails userDetails) {
+        StringJoiner rolesJoiner = new StringJoiner(",");
+
+        for (GrantedAuthority authority : userDetails.getAuthorities()) {
+            rolesJoiner.add(authority.getAuthority());
+        }
+
+        return rolesJoiner.toString();
     }
 
     private ResponseEntity<Map<String, String>> validarDatosRegistro(String username,

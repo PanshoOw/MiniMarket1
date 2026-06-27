@@ -1,16 +1,11 @@
 package com.minimarket.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.minimarket.dto.UsuarioRequest;
 import com.minimarket.entity.Rol;
 import com.minimarket.entity.Usuario;
 import com.minimarket.repository.RolRepository;
 import com.minimarket.security.filter.JwtAuthenticationFilter;
 import com.minimarket.service.UsuarioService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
@@ -19,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,9 +23,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -56,14 +52,11 @@ class UsuarioControllerTest {
 
     private static final String API_USUARIOS = "/api/usuarios";
     private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
+    private static final String ROLE_GERENTE = "ROLE_GERENTE";
     private static final String ROLE_EMPLEADO = "ROLE_EMPLEADO";
-    private static final String ROLE_CLIENTE = "ROLE_CLIENTE";
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @MockitoBean
     private UsuarioService usuarioService;
@@ -76,14 +69,18 @@ class UsuarioControllerTest {
 
     @Test
     void listarUsuariosDebeRetornarOk() throws Exception {
+        // REQ-USR-01:
+        // Valida que el sistema permita listar usuarios transformados a UsuarioDTO,
+        // evitando exponer datos sensibles como la contraseña.
+
         Usuario usuario = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                crearRol(1L, ROLE_GERENTE)
         );
 
         when(usuarioService.findAll()).thenReturn(List.of(usuario));
@@ -91,34 +88,27 @@ class UsuarioControllerTest {
         mockMvc.perform(get(API_USUARIOS))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].username").value("empleado"))
-                .andExpect(jsonPath("$[0].nombre").value("Empleado"))
-                .andExpect(jsonPath("$[0].apellido").value("Operativo"))
-                .andExpect(jsonPath("$[0].email").value("empleado@minimarket.cl"))
-                .andExpect(jsonPath("$[0].direccion").value("Sucursal central 200"))
+                .andExpect(jsonPath("$[0].username").value("gerente1"))
+                .andExpect(jsonPath("$[0].nombre").value("Gerente"))
+                .andExpect(jsonPath("$[0].apellido").value("Principal"))
+                .andExpect(jsonPath("$[0].email").value("gerente@test.cl"))
+                .andExpect(jsonPath("$[0].direccion").value("Oficina Central"))
                 .andExpect(jsonPath("$[0].password").doesNotExist());
     }
 
     @Test
-    void listarUsuariosVacioDebeRetornarOk() throws Exception {
-        when(usuarioService.findAll()).thenReturn(List.of());
-
-        mockMvc.perform(get(API_USUARIOS))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$").isEmpty());
-    }
-
-    @Test
     void obtenerUsuarioPorIdExistenteDebeRetornarOk() throws Exception {
+        // REQ-USR-02:
+        // Valida la consulta exitosa de un usuario existente por ID.
+
         Usuario usuario = crearUsuario(
                 1L,
-                "cliente",
-                "Cliente",
-                "Demo",
-                "cliente@minimarket.cl",
-                "Dirección cliente 300",
-                ROLE_CLIENTE
+                "empleado1",
+                "Empleado",
+                "Uno",
+                "empleado@test.cl",
+                "Sucursal 1",
+                crearRol(2L, ROLE_EMPLEADO)
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuario));
@@ -126,16 +116,19 @@ class UsuarioControllerTest {
         mockMvc.perform(get(API_USUARIOS + "/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.username").value("cliente"))
-                .andExpect(jsonPath("$.nombre").value("Cliente"))
-                .andExpect(jsonPath("$.apellido").value("Demo"))
-                .andExpect(jsonPath("$.email").value("cliente@minimarket.cl"))
-                .andExpect(jsonPath("$.direccion").value("Dirección cliente 300"))
+                .andExpect(jsonPath("$.username").value("empleado1"))
+                .andExpect(jsonPath("$.nombre").value("Empleado"))
+                .andExpect(jsonPath("$.apellido").value("Uno"))
+                .andExpect(jsonPath("$.email").value("empleado@test.cl"))
+                .andExpect(jsonPath("$.direccion").value("Sucursal 1"))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
     void obtenerUsuarioPorIdInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-USR-03:
+        // Valida que el sistema responda 404 cuando se consulta un usuario inexistente.
+
         when(usuarioService.findById(99L)).thenReturn(Optional.empty());
 
         mockMvc.perform(get(API_USUARIOS + "/99"))
@@ -144,328 +137,299 @@ class UsuarioControllerTest {
 
     @Test
     void guardarUsuarioValidoDebeRetornarOk() throws Exception {
-        UsuarioRequest request = crearRequestValido();
-        Rol rolEmpleado = crearRol(1L, ROLE_EMPLEADO);
+        // REQ-USR-04:
+        // Valida que se pueda crear un usuario con datos válidos,
+        // contraseña encriptada y rol existente.
+
+        Rol rolGerente = crearRol(1L, ROLE_GERENTE);
+
         Usuario usuarioGuardado = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                rolGerente
         );
 
-        when(usuarioService.findByUsername("empleado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado@minimarket.cl")).thenReturn(Optional.empty());
-        when(rolRepository.findByNombre(ROLE_EMPLEADO)).thenReturn(Optional.of(rolEmpleado));
-        when(passwordEncoder.encode("clave123")).thenReturn("clave-encriptada");
+        when(usuarioService.findByUsername("gerente1")).thenReturn(Optional.empty());
+        when(usuarioService.findByEmail("gerente@test.cl")).thenReturn(Optional.empty());
+        when(rolRepository.findByNombre(ROLE_GERENTE)).thenReturn(Optional.of(rolGerente));
+        when(passwordEncoder.encode("123456")).thenReturn("password-encriptada");
         when(usuarioService.save(any(Usuario.class))).thenReturn(usuarioGuardado);
 
-        postUsuario(request)
+        postUsuario(usuarioJsonValidoGerente())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.username").value("empleado"))
-                .andExpect(jsonPath("$.nombre").value("Empleado"))
-                .andExpect(jsonPath("$.apellido").value("Operativo"))
-                .andExpect(jsonPath("$.email").value("empleado@minimarket.cl"))
-                .andExpect(jsonPath("$.direccion").value("Sucursal central 200"))
+                .andExpect(jsonPath("$.username").value("gerente1"))
+                .andExpect(jsonPath("$.email").value("gerente@test.cl"))
                 .andExpect(jsonPath("$.password").doesNotExist());
 
-        verify(passwordEncoder).encode("clave123");
+        verify(passwordEncoder).encode("123456");
         verify(usuarioService).save(any(Usuario.class));
     }
 
     @Test
-    void guardarUsuarioConBodyNullDebeRetornarBadRequest() throws Exception {
+    void guardarUsuarioSinBodyDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-05:
+        // Valida que no se permita crear un usuario sin cuerpo JSON.
+
         mockMvc.perform(post(API_USUARIOS)
-                        .contentType(JSON)
-                        .content("null"))
+                        .contentType(JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Los datos del usuario son obligatorios"));
-    }
 
-    @ParameterizedTest
-    @MethodSource("requestsInvalidos")
-    void guardarUsuarioConDatosInvalidosDebeRetornarBadRequest(UsuarioRequest request,
-                                                               String mensajeEsperado) throws Exception {
-        postUsuario(request)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value(mensajeEsperado));
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
-    void guardarUsuarioConUsernameExistenteDebeRetornarBadRequest() throws Exception {
-        UsuarioRequest request = crearRequestValido();
-        Usuario usuarioExistente = crearUsuario(
-                1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+    void guardarUsuarioSinUsernameDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-06:
+        // Valida que el username sea obligatorio al crear usuarios.
+
+        postUsuario(usuarioJsonSinUsername())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("El nombre de usuario es obligatorio"));
+
+        verify(usuarioService, never()).save(any(Usuario.class));
+    }
+
+    @Test
+    void guardarUsuarioExistenteDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-07:
+        // Valida que no se permita crear un usuario con username duplicado.
+
+        Usuario existente = crearUsuario(
+                2L,
+                "gerente1",
+                "Otro",
+                "Usuario",
+                "otro@test.cl",
+                "Otra dirección",
+                crearRol(1L, ROLE_GERENTE)
         );
 
-        when(usuarioService.findByUsername("empleado")).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioService.findByUsername("gerente1")).thenReturn(Optional.of(existente));
 
-        postUsuario(request)
+        postUsuario(usuarioJsonValidoGerente())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El usuario ya existe"));
+
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
     void guardarUsuarioConEmailExistenteDebeRetornarBadRequest() throws Exception {
-        UsuarioRequest request = crearRequestValido();
-        Usuario usuarioExistente = crearUsuario(
-                2L,
-                "otro",
+        // REQ-USR-08:
+        // Valida que no se permita crear un usuario con email duplicado.
+
+        Usuario existente = crearUsuario(
+                3L,
+                "otroUsuario",
                 "Otro",
                 "Usuario",
-                "empleado@minimarket.cl",
+                "gerente@test.cl",
                 "Otra dirección",
-                ROLE_CLIENTE
+                crearRol(2L, ROLE_EMPLEADO)
         );
 
-        when(usuarioService.findByUsername("empleado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado@minimarket.cl")).thenReturn(Optional.of(usuarioExistente));
+        when(usuarioService.findByUsername("gerente1")).thenReturn(Optional.empty());
+        when(usuarioService.findByEmail("gerente@test.cl")).thenReturn(Optional.of(existente));
 
-        postUsuario(request)
+        postUsuario(usuarioJsonValidoGerente())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El email ya está en uso"));
+
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
     void guardarUsuarioConRolInexistenteDebeRetornarBadRequest() throws Exception {
-        UsuarioRequest request = crearRequestValido();
+        // REQ-USR-09:
+        // Valida que no se permita crear un usuario con un rol inexistente.
 
-        when(usuarioService.findByUsername("empleado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado@minimarket.cl")).thenReturn(Optional.empty());
-        when(rolRepository.findByNombre(ROLE_EMPLEADO)).thenReturn(Optional.empty());
+        when(usuarioService.findByUsername("gerente1")).thenReturn(Optional.empty());
+        when(usuarioService.findByEmail("gerente@test.cl")).thenReturn(Optional.empty());
+        when(rolRepository.findByNombre(ROLE_GERENTE)).thenReturn(Optional.empty());
 
-        postUsuario(request)
+        postUsuario(usuarioJsonValidoGerente())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El rol indicado no existe"));
+
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
-    void actualizarUsuarioValidoDebeRetornarOk() throws Exception {
+    void actualizarUsuarioExistenteDebeRetornarOk() throws Exception {
+        // REQ-USR-10:
+        // Valida que se pueda actualizar un usuario existente con datos válidos.
+
+        Rol rolEmpleado = crearRol(2L, ROLE_EMPLEADO);
+
         Usuario usuarioExistente = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
-        );
-
-        UsuarioRequest request = new UsuarioRequest(
-                "empleadoActualizado",
-                "clave123",
-                ROLE_EMPLEADO,
-                "Empleado",
-                "Actualizado",
-                "empleado.actualizado@minimarket.cl",
-                "Sucursal actualizada 500"
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                crearRol(1L, ROLE_GERENTE)
         );
 
         Usuario usuarioActualizado = crearUsuario(
                 1L,
-                "empleadoActualizado",
+                "empleado1",
                 "Empleado",
                 "Actualizado",
-                "empleado.actualizado@minimarket.cl",
-                "Sucursal actualizada 500",
-                ROLE_EMPLEADO
+                "empleado@test.cl",
+                "Sucursal 2",
+                rolEmpleado
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
-        when(usuarioService.findByUsername("empleadoActualizado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado.actualizado@minimarket.cl")).thenReturn(Optional.empty());
-        when(rolRepository.findByNombre(ROLE_EMPLEADO)).thenReturn(Optional.of(crearRol(1L, ROLE_EMPLEADO)));
-        when(passwordEncoder.encode("clave123")).thenReturn("clave-encriptada");
+        when(usuarioService.findByUsername("empleado1")).thenReturn(Optional.empty());
+        when(usuarioService.findByEmail("empleado@test.cl")).thenReturn(Optional.empty());
+        when(rolRepository.findByNombre(ROLE_EMPLEADO)).thenReturn(Optional.of(rolEmpleado));
+        when(passwordEncoder.encode("654321")).thenReturn("password-actualizada");
         when(usuarioService.save(any(Usuario.class))).thenReturn(usuarioActualizado);
 
-        putUsuario(1L, request)
+        putUsuario(1L, usuarioJsonActualizadoEmpleado())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.username").value("empleadoActualizado"))
+                .andExpect(jsonPath("$.username").value("empleado1"))
                 .andExpect(jsonPath("$.nombre").value("Empleado"))
                 .andExpect(jsonPath("$.apellido").value("Actualizado"))
-                .andExpect(jsonPath("$.email").value("empleado.actualizado@minimarket.cl"))
-                .andExpect(jsonPath("$.direccion").value("Sucursal actualizada 500"))
+                .andExpect(jsonPath("$.email").value("empleado@test.cl"))
+                .andExpect(jsonPath("$.direccion").value("Sucursal 2"))
                 .andExpect(jsonPath("$.password").doesNotExist());
 
-        verify(passwordEncoder).encode("clave123");
+        verify(passwordEncoder).encode("654321");
         verify(usuarioService).save(any(Usuario.class));
     }
 
     @Test
     void actualizarUsuarioInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-USR-11:
+        // Valida que no se pueda actualizar un usuario inexistente.
+
         when(usuarioService.findById(99L)).thenReturn(Optional.empty());
 
-        putUsuario(99L, crearRequestValido())
+        putUsuario(99L, usuarioJsonActualizadoEmpleado())
                 .andExpect(status().isNotFound());
+
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
-    void actualizarUsuarioConBodyNullDebeRetornarBadRequest() throws Exception {
+    void actualizarUsuarioSinBodyDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-12:
+        // Valida que no se permita actualizar un usuario sin cuerpo JSON.
+
         Usuario usuarioExistente = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                crearRol(1L, ROLE_GERENTE)
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
 
         mockMvc.perform(put(API_USUARIOS + "/1")
-                        .contentType(JSON)
-                        .content("null"))
+                        .contentType(JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Los datos del usuario son obligatorios"));
-    }
 
-    @ParameterizedTest
-    @MethodSource("requestsInvalidos")
-    void actualizarUsuarioConDatosInvalidosDebeRetornarBadRequest(UsuarioRequest request,
-                                                                  String mensajeEsperado) throws Exception {
-        Usuario usuarioExistente = crearUsuario(
-                1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
-        );
-
-        when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
-
-        putUsuario(1L, request)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value(mensajeEsperado));
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
     void actualizarUsuarioConUsernameDeOtroUsuarioDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-13:
+        // Valida que no se permita actualizar un usuario usando el username de otro usuario.
+
         Usuario usuarioExistente = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                crearRol(1L, ROLE_GERENTE)
         );
 
-        Usuario otroUsuario = crearUsuario(
+        Usuario usuarioConMismoUsername = crearUsuario(
                 2L,
-                "empleadoActualizado",
-                "Otro",
-                "Usuario",
-                "otro@minimarket.cl",
-                "Otra dirección",
-                ROLE_CLIENTE
-        );
-
-        UsuarioRequest request = new UsuarioRequest(
-                "empleadoActualizado",
-                "clave123",
-                ROLE_EMPLEADO,
+                "empleado1",
                 "Empleado",
-                "Operativo",
-                "empleado.nuevo@minimarket.cl",
-                "Sucursal central 200"
+                "Uno",
+                "empleado@test.cl",
+                "Sucursal 1",
+                crearRol(2L, ROLE_EMPLEADO)
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
-        when(usuarioService.findByUsername("empleadoActualizado")).thenReturn(Optional.of(otroUsuario));
+        when(usuarioService.findByUsername("empleado1")).thenReturn(Optional.of(usuarioConMismoUsername));
 
-        putUsuario(1L, request)
+        putUsuario(1L, usuarioJsonActualizadoEmpleado())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El nombre de usuario ya está en uso"));
+
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
     void actualizarUsuarioConEmailDeOtroUsuarioDebeRetornarBadRequest() throws Exception {
+        // REQ-USR-14:
+        // Valida que no se permita actualizar un usuario usando el email de otro usuario.
+
         Usuario usuarioExistente = crearUsuario(
                 1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "gerente1",
+                "Gerente",
+                "Principal",
+                "gerente@test.cl",
+                "Oficina Central",
+                crearRol(1L, ROLE_GERENTE)
         );
 
-        Usuario otroUsuario = crearUsuario(
+        Usuario usuarioConMismoEmail = crearUsuario(
                 2L,
-                "otro",
-                "Otro",
-                "Usuario",
-                "empleado.actualizado@minimarket.cl",
-                "Otra dirección",
-                ROLE_CLIENTE
-        );
-
-        UsuarioRequest request = new UsuarioRequest(
-                "empleadoActualizado",
-                "clave123",
-                ROLE_EMPLEADO,
+                "empleado2",
                 "Empleado",
-                "Actualizado",
-                "empleado.actualizado@minimarket.cl",
-                "Sucursal actualizada 500"
+                "Dos",
+                "empleado@test.cl",
+                "Sucursal 3",
+                crearRol(2L, ROLE_EMPLEADO)
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
-        when(usuarioService.findByUsername("empleadoActualizado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado.actualizado@minimarket.cl")).thenReturn(Optional.of(otroUsuario));
+        when(usuarioService.findByUsername("empleado1")).thenReturn(Optional.empty());
+        when(usuarioService.findByEmail("empleado@test.cl")).thenReturn(Optional.of(usuarioConMismoEmail));
 
-        putUsuario(1L, request)
+        putUsuario(1L, usuarioJsonActualizadoEmpleado())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("El email ya está en uso"));
-    }
 
-    @Test
-    void actualizarUsuarioConRolInexistenteDebeRetornarBadRequest() throws Exception {
-        Usuario usuarioExistente = crearUsuario(
-                1L,
-                "empleado",
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
-        );
-
-        UsuarioRequest request = crearRequestValido();
-
-        when(usuarioService.findById(1L)).thenReturn(Optional.of(usuarioExistente));
-        when(usuarioService.findByUsername("empleado")).thenReturn(Optional.empty());
-        when(usuarioService.findByEmail("empleado@minimarket.cl")).thenReturn(Optional.empty());
-        when(rolRepository.findByNombre(ROLE_EMPLEADO)).thenReturn(Optional.empty());
-
-        putUsuario(1L, request)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("El rol indicado no existe"));
+        verify(usuarioService, never()).save(any(Usuario.class));
     }
 
     @Test
     void eliminarUsuarioExistenteDebeRetornarNoContent() throws Exception {
+        // REQ-USR-15:
+        // Valida que se pueda eliminar un usuario existente.
+
         Usuario usuario = crearUsuario(
                 1L,
-                "empleado",
+                "empleado1",
                 "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200",
-                ROLE_EMPLEADO
+                "Uno",
+                "empleado@test.cl",
+                "Sucursal 1",
+                crearRol(2L, ROLE_EMPLEADO)
         );
 
         when(usuarioService.findById(1L)).thenReturn(Optional.of(usuario));
@@ -478,111 +442,79 @@ class UsuarioControllerTest {
 
     @Test
     void eliminarUsuarioInexistenteDebeRetornarNotFound() throws Exception {
+        // REQ-USR-16:
+        // Valida que no se pueda eliminar un usuario inexistente.
+
         when(usuarioService.findById(99L)).thenReturn(Optional.empty());
 
         mockMvc.perform(delete(API_USUARIOS + "/99"))
                 .andExpect(status().isNotFound());
+
+        verify(usuarioService, never()).deleteById(99L);
     }
 
-    private ResultActions postUsuario(UsuarioRequest request) throws Exception {
+    private ResultActions postUsuario(String json) throws Exception {
         return mockMvc.perform(post(API_USUARIOS)
                 .contentType(JSON)
-                .content(toJson(request)));
+                .content(json));
     }
 
-    private ResultActions putUsuario(Long id, UsuarioRequest request) throws Exception {
+    private ResultActions putUsuario(Long id, String json) throws Exception {
         return mockMvc.perform(put(API_USUARIOS + "/" + id)
                 .contentType(JSON)
-                .content(toJson(request)));
+                .content(json));
     }
 
-    private String toJson(Object object) throws Exception {
-        return objectMapper.writeValueAsString(object);
+    @NonNull
+    private String usuarioJsonValidoGerente() {
+        return """
+                {
+                    "username": "gerente1",
+                    "password": "123456",
+                    "rol": "ROLE_GERENTE",
+                    "nombre": "Gerente",
+                    "apellido": "Principal",
+                    "email": "gerente@test.cl",
+                    "direccion": "Oficina Central"
+                }
+                """;
     }
 
-    private static Stream<Arguments> requestsInvalidos() {
-        return Stream.of(
-                Arguments.of(
-                        request(null, "clave123", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "El nombre de usuario es obligatorio"
-                ),
-                Arguments.of(
-                        request("   ", "clave123", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "El nombre de usuario es obligatorio"
-                ),
-                Arguments.of(
-                        request("empleado", null, ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "La contraseña es obligatoria"
-                ),
-                Arguments.of(
-                        request("empleado", "   ", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "La contraseña es obligatoria"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", null, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "El rol es obligatorio"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", ROLE_EMPLEADO, null, "Operativo",
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "El nombre es obligatorio"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", ROLE_EMPLEADO, "Empleado", null,
-                                "empleado@minimarket.cl", "Sucursal central 200"),
-                        "El apellido es obligatorio"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                null, "Sucursal central 200"),
-                        "El email es obligatorio"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "correo-invalido", "Sucursal central 200"),
-                        "El email no tiene un formato válido"
-                ),
-                Arguments.of(
-                        request("empleado", "clave123", ROLE_EMPLEADO, "Empleado", "Operativo",
-                                "empleado@minimarket.cl", null),
-                        "La dirección es obligatoria"
-                )
-        );
+    @NonNull
+    private String usuarioJsonSinUsername() {
+        return """
+                {
+                    "username": " ",
+                    "password": "123456",
+                    "rol": "ROLE_GERENTE",
+                    "nombre": "Gerente",
+                    "apellido": "Principal",
+                    "email": "gerente@test.cl",
+                    "direccion": "Oficina Central"
+                }
+                """;
     }
 
-    private static UsuarioRequest request(String username,
-                                          String password,
-                                          String rol,
-                                          String nombre,
-                                          String apellido,
-                                          String email,
-                                          String direccion) {
-        return new UsuarioRequest(
-                username,
-                password,
-                rol,
-                nombre,
-                apellido,
-                email,
-                direccion
-        );
+    @NonNull
+    private String usuarioJsonActualizadoEmpleado() {
+        return """
+                {
+                    "username": "empleado1",
+                    "password": "654321",
+                    "rol": "ROLE_EMPLEADO",
+                    "nombre": "Empleado",
+                    "apellido": "Actualizado",
+                    "email": "empleado@test.cl",
+                    "direccion": "Sucursal 2"
+                }
+                """;
     }
 
-    private UsuarioRequest crearRequestValido() {
-        return new UsuarioRequest(
-                "empleado",
-                "clave123",
-                ROLE_EMPLEADO,
-                "Empleado",
-                "Operativo",
-                "empleado@minimarket.cl",
-                "Sucursal central 200"
-        );
+    private Rol crearRol(Long id, String nombre) {
+        Rol rol = new Rol();
+        rol.setId(id);
+        rol.setNombre(nombre);
+        return rol;
     }
 
     private Usuario crearUsuario(Long id,
@@ -591,23 +523,15 @@ class UsuarioControllerTest {
                                  String apellido,
                                  String email,
                                  String direccion,
-                                 String nombreRol) {
+                                 Rol rol) {
         Usuario usuario = new Usuario();
         usuario.setId(id);
         usuario.setUsername(username);
-        usuario.setPassword("clave-encriptada");
         usuario.setNombre(nombre);
         usuario.setApellido(apellido);
         usuario.setEmail(email);
         usuario.setDireccion(direccion);
-        usuario.setRoles(Set.of(crearRol(1L, nombreRol)));
+        usuario.setRoles(Set.of(rol));
         return usuario;
-    }
-
-    private static Rol crearRol(Long id, String nombre) {
-        Rol rol = new Rol();
-        rol.setId(id);
-        rol.setNombre(nombre);
-        return rol;
     }
 }

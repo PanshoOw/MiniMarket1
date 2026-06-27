@@ -60,7 +60,7 @@ public class ProductoController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
+    @PreAuthorize("hasAuthority('" + ROLE_GERENTE + "')")
     public ResponseEntity<Object> guardarProducto(@RequestBody(required = false) ProductoRequest productoRequest) {
 
         if (productoRequest == null) {
@@ -117,7 +117,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('" + ROLE_GERENTE + "', '" + ROLE_EMPLEADO + "')")
+    @PreAuthorize("hasAuthority('" + ROLE_GERENTE + "')")
     public ResponseEntity<Object> actualizarProducto(@PathVariable Long id,
                                                     @RequestBody(required = false) ProductoRequest productoRequest) {
 
